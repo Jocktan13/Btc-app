@@ -57,9 +57,9 @@
 <body>
 
   <div class="card">
-    <h2>BTC/USDT • Velas de 5 Minutos (v2)</h2>
+    <h2>BTC/USDT • Velas de 5 Minutos (v3)</h2>
     <div class="price" id="precoAtual">Carregando...</div>
-    <div class="info" id="statusSessao">Iniciando busca desde 00:00 UTC...</div>
+    <div class="info" id="statusSessao">Buscando dados desde 00:00 UTC...</div>
   </div>
 
   <div class="card">
@@ -82,65 +82,67 @@
   <script>
     let intervalo = null;
 
-    function obterInicioSessaoSegundosUTC() {
+    function obterInicioSessaoMsUTC() {
       const agora = new Date();
-      return Math.floor(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0) / 1000);
+      return Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0);
     }
 
-    async function buscarComDiagnostico() {
-      const inicioUTC = obterInicioSessaoSegundosUTC();
-      const logErros = [];
+    async function buscarVelas() {
+      const inicioMs = obterInicioSessaoMsUTC();
+      const inicioSeg = Math.floor(inicioMs / 1000);
+      const erros = [];
 
-      const urlCC = new URL("https://cryptocompare.com");
-      urlCC.pathname = ["data", "v2", "histominute"].join("/");
-      urlCC.searchParams.set("fsym", "BTC");
-      urlCC.searchParams.set("tsym", "USDT");
-      urlCC.searchParams.set("limit", "300");
-      urlCC.searchParams.set("aggregate", "5");
-
-      // Tentativa 1: Direta CryptoCompare
+      // 1. Binance Data Vision (Base64: https://binance.vision)
       try {
-        const res1 = await fetch(urlCC.toString());
-        if (!res1.ok) throw new Error("HTTP " + res1.status);
-        const json1 = await res1.json();
-        const lista1 = json1.Data.Data.filter(v => v.time >= inicioUTC);
-        if (lista1.length >= 2) {
+        const baseB = atob("aHR0cHM6Ly9kYXRhLWFwaS5iaW5hbmNlLnZpc2lvbi9hcGkvdjMva2xpbmVz");
+        const urlB = new URL(baseB);
+        urlB.searchParams.set("symbol", "BTCUSDT");
+        urlB.searchParams.set("interval", "5m");
+        urlB.searchParams.set("startTime", inicioMs.toString());
+        urlB.searchParams.set("limit", "1000");
+
+        const resB = await fetch(urlB.toString());
+        if (!resB.ok) throw new Error("HTTP " + resB.status);
+        const dadosB = await resB.json();
+        if (Array.isArray(dadosB) && dadosB.length >= 2) {
           return {
-            fonte: "Mercado Global (Direto)",
-            velas: lista1.map(v => ({ open: v.open, close: v.close }))
+            fonte: "Binance (5m)",
+            velas: dadosB.map(v => ({ open: parseFloat(v.at(1)), close: parseFloat(v.at(4)) }))
           };
         }
-        logErros.push("Rota 1: poucas velas");
       } catch (e) {
-        logErros.push("Rota 1 (" + e.message + ")");
+        erros.push("Binance: " + e.message);
       }
 
-      // Tentativa 2: Via Proxy Público (contorna bloqueio de operadora/DNS)
+      // 2. CryptoCompare (Base64: https://cryptocompare.com)
       try {
-        const urlProxy = new URL("https://allorigins.win");
-        urlProxy.searchParams.set("url", urlCC.toString());
-        const res2 = await fetch(urlProxy.toString());
-        if (!res2.ok) throw new Error("HTTP " + res2.status);
-        const wrap = await res2.json();
-        const json2 = JSON.parse(wrap.contents);
-        const lista2 = json2.Data.Data.filter(v => v.time >= inicioUTC);
-        if (lista2.length >= 2) {
+        const baseCC = atob("aHR0cHM6Ly9taW4tYXBpLmNyeXB0b2NvbXBhcmUuY29tL2RhdGEvdjIvaGlzdG9taW51dGU=");
+        const urlCC = new URL(baseCC);
+        urlCC.searchParams.set("fsym", "BTC");
+        urlCC.searchParams.set("tsym", "USDT");
+        urlCC.searchParams.set("limit", "300");
+        urlCC.searchParams.set("aggregate", "5");
+
+        const resCC = await fetch(urlCC.toString());
+        if (!resCC.ok) throw new Error("HTTP " + resCC.status);
+        const jsonCC = await resCC.json();
+        const listaCC = jsonCC.Data.Data.filter(v => v.time >= inicioSeg);
+        if (listaCC.length >= 2) {
           return {
-            fonte: "Mercado Global (Túnel)",
-            velas: lista2.map(v => ({ open: v.open, close: v.close }))
+            fonte: "Mercado Global / Binance (5m)",
+            velas: listaCC.map(v => ({ open: v.open, close: v.close }))
           };
         }
-        logErros.push("Rota 2: poucas velas");
       } catch (e) {
-        logErros.push("Rota 2 (" + e.message + ")");
+        erros.push("CryptoCompare: " + e.message);
       }
 
-      throw new Error(logErros.join(" | "));
+      throw new Error(erros.join(" | "));
     }
 
     async function analisarMercado() {
       try {
-        const { fonte, velas } = await buscarComDiagnostico();
+        const { fonte, velas } = await buscarVelas();
 
         const precoAtual = velas.at(-1).close;
         document.getElementById('precoAtual').innerText = "$ " + precoAtual.toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -190,7 +192,7 @@
           "A última vela fechou em " + (ultimaFoiAlta ? "ALTA" : "BAIXA") + ". Nesta sessão, após uma vela de " + (ultimaFoiAlta ? "alta" : "baixa") + ", a próxima subiu " + altasAposPadrao + " de " + totalPadrao + " vezes.";
 
       } catch (erro) {
-        document.getElementById('statusSessao').innerText = "Diagnóstico: " + erro.message;
+        document.getElementById('statusSessao').innerText = "Erro: " + erro.message;
       }
     }
 
