@@ -39,7 +39,7 @@
     .stats { display: flex; justify-content: space-between; font-weight: bold; }
     .up-text { color: #0ecb81; }
     .down-text { color: #f6465d; }
-    .info { font-size: 0.85rem; color: #848e9c; margin-top: 10px; line-height: 1.5; }
+    .info { font-size: 0.85rem; color: #848e9c; margin-top: 10px; line-height: 1.5; word-break: break-word; }
     button {
       width: 100%;
       padding: 12px;
@@ -57,9 +57,9 @@
 <body>
 
   <div class="card">
-    <h2>BTC/USDT • Velas de 5 Minutos</h2>
+    <h2>BTC/USDT • Velas de 5 Minutos (v2)</h2>
     <div class="price" id="precoAtual">Carregando...</div>
-    <div class="info" id="statusSessao">Buscando dados desde 00:00 UTC...</div>
+    <div class="info" id="statusSessao">Iniciando busca desde 00:00 UTC...</div>
   </div>
 
   <div class="card">
@@ -87,52 +87,60 @@
       return Math.floor(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0) / 1000);
     }
 
-    async function buscarVelas() {
+    async function buscarComDiagnostico() {
       const inicioUTC = obterInicioSessaoSegundosUTC();
+      const logErros = [];
 
-      // 1. CryptoCompare (Indice global com dados Binance/Mercado em 5m, 100% liberado no 4G/Brasil)
+      const urlCC = new URL("https://cryptocompare.com");
+      urlCC.pathname = ["data", "v2", "histominute"].join("/");
+      urlCC.searchParams.set("fsym", "BTC");
+      urlCC.searchParams.set("tsym", "USDT");
+      urlCC.searchParams.set("limit", "300");
+      urlCC.searchParams.set("aggregate", "5");
+
+      // Tentativa 1: Direta CryptoCompare
       try {
-        const urlCC = new URL("https://cryptocompare.com");
-        urlCC.pathname = ["data", "v2", "histominute"].join("/");
-        urlCC.searchParams.set("fsym", "BTC");
-        urlCC.searchParams.set("tsym", "USDT");
-        urlCC.searchParams.set("limit", "300");
-        urlCC.searchParams.set("aggregate", "5");
-
-        const resCC = await fetch(urlCC.toString());
-        if (resCC.ok) {
-          const json = await resCC.json();
-          const lista = json.Data.Data.filter(v => v.time >= inicioUTC);
-          if (lista.length >= 2) {
-            return {
-              fonte: "Mercado Global (5m)",
-              velas: lista.map(v => ({ open: v.open, close: v.close }))
-            };
-          }
+        const res1 = await fetch(urlCC.toString());
+        if (!res1.ok) throw new Error("HTTP " + res1.status);
+        const json1 = await res1.json();
+        const lista1 = json1.Data.Data.filter(v => v.time >= inicioUTC);
+        if (lista1.length >= 2) {
+          return {
+            fonte: "Mercado Global (Direto)",
+            velas: lista1.map(v => ({ open: v.open, close: v.close }))
+          };
         }
-      } catch (e) {}
+        logErros.push("Rota 1: poucas velas");
+      } catch (e) {
+        logErros.push("Rota 1 (" + e.message + ")");
+      }
 
-      // 2. Plano B: Kraken OHLC (5m)
-      const urlK = new URL("https://kraken.com");
-      urlK.pathname = ["0", "public", "OHLC"].join("/");
-      urlK.searchParams.set("pair", "XBTUSD");
-      urlK.searchParams.set("interval", "5");
-      urlK.searchParams.set("since", inicioUTC.toString());
+      // Tentativa 2: Via Proxy Público (contorna bloqueio de operadora/DNS)
+      try {
+        const urlProxy = new URL("https://allorigins.win");
+        urlProxy.searchParams.set("url", urlCC.toString());
+        const res2 = await fetch(urlProxy.toString());
+        if (!res2.ok) throw new Error("HTTP " + res2.status);
+        const wrap = await res2.json();
+        const json2 = JSON.parse(wrap.contents);
+        const lista2 = json2.Data.Data.filter(v => v.time >= inicioUTC);
+        if (lista2.length >= 2) {
+          return {
+            fonte: "Mercado Global (Túnel)",
+            velas: lista2.map(v => ({ open: v.open, close: v.close }))
+          };
+        }
+        logErros.push("Rota 2: poucas velas");
+      } catch (e) {
+        logErros.push("Rota 2 (" + e.message + ")");
+      }
 
-      const resK = await fetch(urlK.toString());
-      if (!resK.ok) throw new Error("HTTP " + resK.status);
-      const jsonK = await resK.json();
-      const par = Object.keys(jsonK.result).find(k => k !== "last");
-      const listaK = jsonK.result[par];
-      return {
-        fonte: "Kraken (5m)",
-        velas: listaK.map(v => ({ open: parseFloat(v.at(1)), close: parseFloat(v.at(4)) }))
-      };
+      throw new Error(logErros.join(" | "));
     }
 
     async function analisarMercado() {
       try {
-        const { fonte, velas } = await buscarVelas();
+        const { fonte, velas } = await buscarComDiagnostico();
 
         const precoAtual = velas.at(-1).close;
         document.getElementById('precoAtual').innerText = "$ " + precoAtual.toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -182,7 +190,7 @@
           "A última vela fechou em " + (ultimaFoiAlta ? "ALTA" : "BAIXA") + ". Nesta sessão, após uma vela de " + (ultimaFoiAlta ? "alta" : "baixa") + ", a próxima subiu " + altasAposPadrao + " de " + totalPadrao + " vezes.";
 
       } catch (erro) {
-        document.getElementById('statusSessao').innerText = "Erro: " + erro.message;
+        document.getElementById('statusSessao').innerText = "Diagnóstico: " + erro.message;
       }
     }
 
