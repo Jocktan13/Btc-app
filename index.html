@@ -82,49 +82,51 @@
   <script>
     let intervalo = null;
 
-    function obterInicioSessaoUTC() {
+    function obterInicioSessaoSegundosUTC() {
       const agora = new Date();
-      return Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0);
+      return Math.floor(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0) / 1000);
     }
 
     async function buscarVelas() {
-      const startTime = obterInicioSessaoUTC();
-      
-      // 1. Tenta Binance Data API
-      try {
-        const urlB = new URL("https://binance.vision");
-        urlB.pathname = ["api", "v3", "klines"].join("/");
-        urlB.searchParams.set("symbol", "BTCUSDT");
-        urlB.searchParams.set("interval", "5m");
-        urlB.searchParams.set("startTime", startTime.toString());
-        urlB.searchParams.set("limit", "1000");
+      const inicioUTC = obterInicioSessaoSegundosUTC();
 
-        const resB = await fetch(urlB.toString());
-        if (resB.ok) {
-          const dados = await resB.json();
-          if (Array.isArray(dados) && dados.length >= 2) {
+      // 1. CryptoCompare (Indice global com dados Binance/Mercado em 5m, 100% liberado no 4G/Brasil)
+      try {
+        const urlCC = new URL("https://cryptocompare.com");
+        urlCC.pathname = ["data", "v2", "histominute"].join("/");
+        urlCC.searchParams.set("fsym", "BTC");
+        urlCC.searchParams.set("tsym", "USDT");
+        urlCC.searchParams.set("limit", "300");
+        urlCC.searchParams.set("aggregate", "5");
+
+        const resCC = await fetch(urlCC.toString());
+        if (resCC.ok) {
+          const json = await resCC.json();
+          const lista = json.Data.Data.filter(v => v.time >= inicioUTC);
+          if (lista.length >= 2) {
             return {
-              fonte: "Binance",
-              velas: dados.map(v => ({ open: parseFloat(v.at(1)), close: parseFloat(v.at(4)) }))
+              fonte: "Mercado Global (5m)",
+              velas: lista.map(v => ({ open: v.open, close: v.close }))
             };
           }
         }
       } catch (e) {}
 
-      // 2. Plano B: Coinbase Exchange
-      const urlC = new URL("https://coinbase.com");
-      urlC.pathname = ["products", "BTC-USD", "candles"].join("/");
-      urlC.searchParams.set("granularity", "300");
-      urlC.searchParams.set("start", new Date(startTime).toISOString());
-      urlC.searchParams.set("end", new Date().toISOString());
+      // 2. Plano B: Kraken OHLC (5m)
+      const urlK = new URL("https://kraken.com");
+      urlK.pathname = ["0", "public", "OHLC"].join("/");
+      urlK.searchParams.set("pair", "XBTUSD");
+      urlK.searchParams.set("interval", "5");
+      urlK.searchParams.set("since", inicioUTC.toString());
 
-      const resC = await fetch(urlC.toString());
-      if (!resC.ok) throw new Error("Falha ao carregar dados das corretoras.");
-      const dadosC = await resC.json();
-      dadosC.reverse();
+      const resK = await fetch(urlK.toString());
+      if (!resK.ok) throw new Error("HTTP " + resK.status);
+      const jsonK = await resK.json();
+      const par = Object.keys(jsonK.result).find(k => k !== "last");
+      const listaK = jsonK.result[par];
       return {
-        fonte: "Coinbase",
-        velas: dadosC.map(v => ({ open: parseFloat(v.at(3)), close: parseFloat(v.at(4)) }))
+        fonte: "Kraken (5m)",
+        velas: listaK.map(v => ({ open: parseFloat(v.at(1)), close: parseFloat(v.at(4)) }))
       };
     }
 
@@ -174,7 +176,7 @@
         document.getElementById('barraBaixa').style.width = probBaixa + "%";
 
         document.getElementById('statusSessao').innerText = 
-          "Fonte: " + fonte + " • Sessão atual: " + velasFechadas.length + " velas fechadas desde 00:00 UTC (" + totalAltas + " altas / " + totalBaixas + " baixas).";
+          fonte + " • Sessão atual: " + velasFechadas.length + " velas fechadas desde 00:00 UTC (" + totalAltas + " altas / " + totalBaixas + " baixas).";
 
         document.getElementById('detalhesCalculo').innerText = 
           "A última vela fechou em " + (ultimaFoiAlta ? "ALTA" : "BAIXA") + ". Nesta sessão, após uma vela de " + (ultimaFoiAlta ? "alta" : "baixa") + ", a próxima subiu " + altasAposPadrao + " de " + totalPadrao + " vezes.";
