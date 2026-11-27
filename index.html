@@ -39,7 +39,7 @@
 </head>
 <body>
 <div class="card">
-  <div class="row"><h2>BTC/USDT • 5m (v11)</h2><div class="timer" id="relogio">00:00</div></div>
+  <div class="row"><h2>BTC/USDT • 5m (v12)</h2><div class="timer" id="relogio">00:00</div></div>
   <div class="price" id="preco">Carregando...</div>
   <div class="info" id="status">Buscando sessão...</div>
   <div class="modes">
@@ -52,13 +52,13 @@
   <div class="alert" id="alerta">Monitorando zonas de Fibonacci...</div>
 </div>
 <div class="card">
-  <h2>📐 Fibonacci da Sessão</h2>
+  <h2>📐 Fibonacci da Perna Atual (3h)</h2>
   <div class="fgrid">
-    <div class="fitem"><span>0% (Topo):</span><strong id="f0">--</strong></div>
-    <div class="fitem fhi" id="box382"><span>38.2%:</span><strong id="f382">--</strong></div>
-    <div class="fitem" id="box50"><span>50.0%:</span><strong id="f50">--</strong></div>
-    <div class="fitem fhi" id="box618"><span>61.8%:</span><strong id="f618">--</strong></div>
-    <div class="fitem" style="grid-column: span 2;"><span>100% (Fundo):</span><strong id="f100">--</strong></div>
+    <div class="fitem"><span>0% (Extremo):</span><strong id="f0">--</strong></div>
+    <div class="fitem fhi"><span>38.2%:</span><strong id="f382">--</strong></div>
+    <div class="fitem"><span>50.0%:</span><strong id="f50">--</strong></div>
+    <div class="fitem fhi"><span>61.8%:</span><strong id="f618">--</strong></div>
+    <div class="fitem" style="grid-column: span 2;"><span>100% (Base):</span><strong id="f100">--</strong></div>
   </div>
 </div>
 <div class="card">
@@ -116,13 +116,21 @@ async function carregar() {
   var r = await fetch(u.toString()), j = await r.json();
   return j.map(function(v) { return { o: parseFloat(v.at(1)), h: parseFloat(v.at(2)), l: parseFloat(v.at(3)), c: parseFloat(v.at(4)) }; });
 }
+function calcNiveis(lista) {
+  var max = -Infinity, min = Infinity;
+  for (var i = 0; i < lista.length; i++) { if (lista[i].h > max) max = lista[i].h; if (lista[i].l < min) min = lista[i].l; }
+  var amp = max - min;
+  return dir === 'ALTA'
+    ? { max: max, min: min, f382: max - amp * 0.382, f50: max - amp * 0.5, f618: max - amp * 0.618 }
+    : { max: max, min: min, f382: min + amp * 0.382, f50: min + amp * 0.5, f618: min + amp * 0.618 };
+}
 function tocouFibo(v, n, filtro) {
-  var tol = (n.max - n.min) * 0.035;
+  var tol = (n.max - n.min) * 0.05;
   var lv = [{ k: '38.2%', p: n.f382 }, { k: '50.0%', p: n.f50 }, { k: '61.8%', p: n.f618 }];
   for (var i = 0; i < lv.length; i++) {
     if (filtro && filtro !== 'TODOS' && lv[i].k !== filtro) continue;
-    if (dir === 'ALTA' && v.l <= lv[i].p + tol && v.c >= lv[i].p - tol) return lv[i].k;
-    if (dir === 'BAIXA' && v.h >= lv[i].p - tol && v.c <= lv[i].p + tol) return lv[i].k;
+    if (dir === 'ALTA' && v.l <= lv[i].p + tol && v.h >= lv[i].p - tol) return lv[i].k;
+    if (dir === 'BAIXA' && v.h >= lv[i].p - tol && v.l <= lv[i].p + tol) return lv[i].k;
   }
   return null;
 }
@@ -147,17 +155,13 @@ async function analisar() {
     var velas = await carregar();
     var atual = velas[velas.length - 1], fechadas = velas.slice(0, -1), ant = fechadas[fechadas.length - 1];
     document.getElementById('preco').innerText = usd(atual.c);
-    var max = -Infinity, min = Infinity;
-    for (var i = 0; i < velas.length; i++) { if (velas[i].h > max) max = velas[i].h; if (velas[i].l < min) min = velas[i].l; }
-    var amp = max - min;
-    var n = dir === 'ALTA'
-      ? { max: max, min: min, f382: max - amp * 0.382, f50: max - amp * 0.5, f618: max - amp * 0.618 }
-      : { max: max, min: min, f382: min + amp * 0.382, f50: min + amp * 0.5, f618: min + amp * 0.618 };
-    document.getElementById('f0').innerText = usd(dir === 'ALTA' ? max : min);
+    var pernaAtual = velas.slice(-36);
+    var n = calcNiveis(pernaAtual);
+    document.getElementById('f0').innerText = usd(dir === 'ALTA' ? n.max : n.min);
     document.getElementById('f382').innerText = usd(n.f382);
     document.getElementById('f50').innerText = usd(n.f50);
     document.getElementById('f618').innerText = usd(n.f618);
-    document.getElementById('f100').innerText = usd(dir === 'ALTA' ? min : max);
+    document.getElementById('f100').innerText = usd(dir === 'ALTA' ? n.min : n.max);
     var zona = tocouFibo(atual, n, fiboFiltro) || tocouFibo(ant, n, fiboFiltro), pa = checkPA(atual, ant), box = document.getElementById('alerta');
     if (zona && pa && segRest <= 60) {
       box.className = dir === 'ALTA' ? 'alert trig-up' : 'alert trig-dn';
@@ -177,11 +181,12 @@ async function analisar() {
         : 'Monitorando exclusivamente o nível <strong>' + fiboFiltro + '</strong>.';
     }
     var gat = 0, cont = 0;
-    for (var k = 1; k < fechadas.length - 1; k++) {
+    for (var k = 12; k < fechadas.length - 1; k++) {
+      var nHist = calcNiveis(fechadas.slice(Math.max(0, k - 36), k));
       var vg = fechadas[k], va = fechadas[k - 1], vs = fechadas[k + 1];
-      if (tocouFibo(vg, n, fiboFiltro) || tocouFibo(va, n, fiboFiltro)) {
-        if (dir === 'ALTA' && vg.c > vg.o && va.c <= va.o) { gat++; if (vs.c > vs.o) cont++; }
-        if (dir === 'BAIXA' && vg.c < vg.o && va.c >= va.o) { gat++; if (vs.c < vs.o) cont++; }
+      if (tocouFibo(vg, nHist, fiboFiltro) || tocouFibo(va, nHist, fiboFiltro)) {
+        if (dir === 'ALTA' && vg.c > vg.o) { gat++; if (vs.c > vs.o) cont++; }
+        if (dir === 'BAIXA' && vg.c < vg.o) { gat++; if (vs.c < vs.o) cont++; }
       }
     }
     document.getElementById('cntToques').innerText = gat;
