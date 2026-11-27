@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BTC 5m Fibo</title>
+<title>Cripto 5m Fibo</title>
 <style>
   body { font-family: sans-serif; background: #0b0e11; color: #eaecef; margin: 0; padding: 14px; display: flex; flex-direction: column; align-items: center; }
   .card { background: #1e2329; border-radius: 12px; padding: 16px; width: 100%; max-width: 400px; margin-bottom: 12px; box-sizing: border-box; }
@@ -11,6 +11,9 @@
   h2 { margin: 0; color: #f0b90b; font-size: 1.05rem; }
   .timer { background: #2b3139; color: #f0b90b; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
   .urgent { background: #4a1c24; color: #f6465d; border: 1px solid #f6465d; }
+  .coins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+  .cbtn { padding: 7px 4px; border-radius: 6px; border: 1px solid #2b3139; background: #161a1e; color: #848e9c; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
+  .c-on { border-color: #f0b90b; color: #f0b90b; background: rgba(240,185,11,0.18); }
   .price { font-size: 1.85rem; font-weight: bold; margin: 8px 0; }
   .modes { display: flex; gap: 8px; margin-top: 10px; }
   .mbtn { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #2b3139; background: #161a1e; color: #848e9c; font-weight: bold; cursor: pointer; }
@@ -39,7 +42,15 @@
 </head>
 <body>
 <div class="card">
-  <div class="row"><h2>BTC/USDT • 5m (v14)</h2><div class="timer" id="relogio">00:00</div></div>
+  <div class="coins">
+    <button id="cBTCUSDT" class="cbtn c-on" onclick="setPar('BTCUSDT')">BTC/USDT</button>
+    <button id="cETHUSDT" class="cbtn" onclick="setPar('ETHUSDT')">ETH/USDT</button>
+    <button id="cSOLUSDT" class="cbtn" onclick="setPar('SOLUSDT')">SOL/USDT</button>
+    <button id="cBNBUSDT" class="cbtn" onclick="setPar('BNBUSDT')">BNB/USDT</button>
+    <button id="cXRPUSDT" class="cbtn" onclick="setPar('XRPUSDT')">XRP/USDT</button>
+    <button id="cDOGEUSDT" class="cbtn" onclick="setPar('DOGEUSDT')">DOGE/USDT</button>
+  </div>
+  <div class="row"><h2 id="tituloPar">BTC/USDT • 5m (v15)</h2><div class="timer" id="relogio">00:00</div></div>
   <div class="price" id="preco">Carregando...</div>
   <div class="info" id="status">Buscando estrutura de ondas...</div>
   <div class="modes">
@@ -82,7 +93,17 @@
 </div>
 <div class="card"><button id="bLive" class="btn" onclick="toggleLive()">Ativar Tempo Real (3s)</button></div>
 <script>
-var timer = null, dir = 'ALTA', fiboFiltro = 'TODOS', segRest = 300, ultBloco = null, vibBloco = null;
+var timer = null, par = 'BTCUSDT', dir = 'ALTA', fiboFiltro = 'TODOS', segRest = 300, ultBloco = null, vibBloco = null;
+function setPar(p) {
+  par = p;
+  var lista = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT'];
+  for (var i = 0; i < lista.length; i++) {
+    document.getElementById('c' + lista[i]).className = lista[i] === p ? 'cbtn c-on' : 'cbtn';
+  }
+  document.getElementById('tituloPar').innerText = p.replace('USDT', '/USDT') + ' • 5m (v15)';
+  document.getElementById('preco').innerText = 'Carregando...';
+  analisar();
+}
 function setDir(d) {
   dir = d;
   document.getElementById('bAlta').className = d === 'ALTA' ? 'mbtn up-on' : 'mbtn';
@@ -107,11 +128,14 @@ function tick() {
   if (ultBloco !== null && bloco !== ultBloco) setTimeout(analisar, 1200);
   ultBloco = bloco;
 }
-function usd(v) { return 'US$ ' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function usd(v) {
+  var dec = v < 1 ? 5 : (v < 10 ? 4 : 2);
+  return 'US$ ' + v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
 async function carregar() {
   var d = new Date(), ini = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0);
   var u = new URL(['https:/', 'data-api.binance.vision', 'api', 'v3', 'klines'].join('/'));
-  u.searchParams.set('symbol', 'BTCUSDT'); u.searchParams.set('interval', '5m');
+  u.searchParams.set('symbol', par); u.searchParams.set('interval', '5m');
   u.searchParams.set('startTime', String(ini)); u.searchParams.set('limit', '1000');
   var r = await fetch(u.toString()), j = await r.json();
   return j.map(function(v) { return { o: parseFloat(v.at(1)), h: parseFloat(v.at(2)), l: parseFloat(v.at(3)), c: parseFloat(v.at(4)) }; });
@@ -133,7 +157,7 @@ function tocouFibo(v, n, filtro) {
   return null;
 }
 function checkPAForte(v, ant, mediaRng) {
-  var rng = Math.max(v.h - v.l, 0.01);
+  var rng = Math.max(v.h - v.l, 0.000001);
   if (rng < mediaRng * 0.85) return null;
   var corpo = Math.abs(v.c - v.o), pctCorpo = corpo / rng;
   if (dir === 'ALTA') {
@@ -155,8 +179,8 @@ function simularCiclos(velas) {
   for (var i = 0; i < velas.length; i++) soma += (velas[i].h - velas[i].l);
   var mediaRng = soma / Math.max(velas.length, 1);
   var minImpulso = mediaRng * 3.2;
-  var base = dir === 'ALTA' ? velas[0].l : velas[0].h;
-  var ext = dir === 'ALTA' ? velas[0].h : velas[0].l;
+  var base = dir === 'ALTA' ? velas.l : velas.h;
+  var ext = dir === 'ALTA' ? velas.h : velas.l;
   var fase = 'BUSCANDO_IMPULSO', fiboAtiva = null, gat = 0, cont = 0;
   var ultimoEstado = { fase: fase, fibo: null, zona: null };
   for (var k = 1; k < velas.length; k++) {
@@ -221,12 +245,12 @@ async function analisar() {
     }
     if (st.fase !== 'AGUARDANDO_RETRACAO') {
       box.className = 'alert';
-      box.innerHTML = '⏸️ <strong>Ciclo em pausa natural:</strong> Mercado lateral ou sem nova pernada de impulso após o último ciclo. Aguardando nova pernada antes de buscar retração.';
+      box.innerHTML = '⏸️ <strong>Ciclo em pausa natural:</strong> Mercado lateral ou sem nova pernada de impulso em ' + par.replace('USDT', '') + '. Aguardando nova pernada antes de buscar retração.';
     } else if (st.zona && st.pa && segRest <= 90) {
       box.className = dir === 'ALTA' ? 'alert trig-up' : 'alert trig-dn';
       box.innerHTML = '<strong>🚨 UMA PROVÁVEL BOA ENTRADA (' + segRest + 's)!</strong><br>Fibo <strong>' + st.zona + '</strong> • ' + st.pa + '.';
       var b = Math.floor(Date.now() / 300000);
-      if (vibBloco !== b && navigator.vibrate) { navigator.vibrate(400); vibBloco = b; }
+      if (vibBloco !== b && navigator.vibrate) { navigator.vibrate(); vibBloco = b; }
     } else if (st.zona && st.pa) {
       box.className = 'alert';
       box.innerHTML = '👀 <strong>Formando sinal (' + st.zona + '):</strong> ' + st.pa + '. Aguardando últimos 90s (' + segRest + 's).';
@@ -245,7 +269,7 @@ async function analisar() {
     var pAlvo = res.gat > 0 ? (res.cont / res.gat) * 100 : 50, pU = dir === 'ALTA' ? pAlvo : 100 - pAlvo, pD = 100 - pU;
     document.getElementById('pAlta').innerText = 'Alta: ' + pU.toFixed(1) + '%'; document.getElementById('pBaixa').innerText = 'Baixa: ' + pD.toFixed(1) + '%';
     document.getElementById('barU').style.width = pU + '%'; document.getElementById('barD').style.width = pD + '%';
-    document.getElementById('status').innerText = 'Binance • ' + (velas.length - 1) + ' velas fechadas desde 00:00 UTC';
+    document.getElementById('status').innerText = 'Binance (' + par + ') • ' + (velas.length - 1) + ' velas fechadas desde 00:00 UTC';
     var txtNivel = fiboFiltro === 'TODOS' ? 'todos os níveis' : 'Fibo ' + fiboFiltro;
     document.getElementById('detalhes').innerText = res.gat > 0
       ? 'Ciclos naturais em ' + txtNivel + ': de ' + res.gat + ' pernadas com retração + 1ª vela, ' + res.cont + ' tiveram continuação (' + pAlvo.toFixed(1) + '%).'
