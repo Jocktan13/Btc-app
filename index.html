@@ -22,6 +22,10 @@
   .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; font-size: 0.84rem; }
   .fitem { background: #161a1e; padding: 7px 9px; border-radius: 6px; display: flex; justify-content: space-between; }
   .fhi { border-left: 3px solid #f0b90b; background: #252a32; }
+  .sgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; text-align: center; }
+  .sbox { background: #161a1e; padding: 10px 6px; border-radius: 8px; border: 1px solid #2b3139; }
+  .sval { font-size: 1.3rem; font-weight: bold; color: #eaecef; margin-bottom: 2px; }
+  .slbl { font-size: 0.75rem; color: #848e9c; }
   .bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; margin: 10px 0; background: #2b3139; }
   .bup { background: #0ecb81; transition: width 0.4s; }
   .bdn { background: #f6465d; transition: width 0.4s; }
@@ -32,7 +36,7 @@
 </head>
 <body>
 <div class="card">
-  <div class="row"><h2>BTC/USDT • 5m (v9)</h2><div class="timer" id="relogio">00:00</div></div>
+  <div class="row"><h2>BTC/USDT • 5m (v10)</h2><div class="timer" id="relogio">00:00</div></div>
   <div class="price" id="preco">Carregando...</div>
   <div class="info" id="status">Buscando sessão...</div>
   <div class="modes">
@@ -55,8 +59,12 @@
   </div>
 </div>
 <div class="card">
-  <h2>📊 Chance Próxima Vela (Pós-Gatilho)</h2>
-  <div class="row" style="font-weight:bold; font-size:0.9rem; margin-top:6px;">
+  <h2>📊 Estatísticas de Toque (Sessão)</h2>
+  <div class="sgrid">
+    <div class="sbox"><div class="sval" id="cntToques">0</div><div class="slbl" id="lblToques">Toques + 1ª Verde</div></div>
+    <div class="sbox"><div class="sval" id="cntSeq" style="color:#0ecb81">0</div><div class="slbl" id="lblSeq">2ª Vela Verde</div></div>
+  </div>
+  <div class="row" style="font-weight:bold; font-size:0.9rem; margin-top:12px;">
     <span style="color:#0ecb81" id="pAlta">Alta: 50%</span>
     <span style="color:#f6465d" id="pBaixa">Baixa: 50%</span>
   </div>
@@ -156,6 +164,11 @@ async function analisar() {
         if (dir === 'BAIXA' && vg.c < vg.o && va.c >= va.o) { gat++; if (vs.c < vs.o) cont++; }
       }
     }
+    document.getElementById('cntToques').innerText = gat;
+    document.getElementById('cntSeq').innerText = cont;
+    document.getElementById('cntSeq').style.color = dir === 'ALTA' ? '#0ecb81' : '#f6465d';
+    document.getElementById('lblToques').innerText = dir === 'ALTA' ? 'Toques + 1ª Verde' : 'Toques + 1ª Vermelha';
+    document.getElementById('lblSeq').innerText = dir === 'ALTA' ? '2ª Vela Verde' : '2ª Vela Vermelha';
     var pAlvo = gat > 0 ? (cont / gat) * 100 : 50;
     var pU = dir === 'ALTA' ? pAlvo : 100 - pAlvo, pD = 100 - pU;
     document.getElementById('pAlta').innerText = 'Alta: ' + pU.toFixed(1) + '%';
@@ -164,8 +177,8 @@ async function analisar() {
     document.getElementById('barD').style.width = pD + '%';
     document.getElementById('status').innerText = 'Binance • ' + fechadas.length + ' velas fechadas desde 00:00 UTC';
     document.getElementById('detalhes').innerText = gat > 0
-      ? 'Sessão: após toque Fibo + 1ª vela ' + dir + ' (' + gat + 'x), a 2ª seguiu ' + cont + 'x (' + pAlvo.toFixed(1) + '%).'
-      : 'Aguardando primeiro gatilho Fibo + 1ª vela ' + dir + ' fechado na sessão de hoje.';
+      ? 'De ' + gat + ' toques com 1ª vela ' + (dir === 'ALTA' ? 'verde' : 'vermelha') + ', ' + cont + ' tiveram continuação (' + pAlvo.toFixed(1) + '%).'
+      : 'Nenhum gatilho completo encontrado na sessão atual até o momento.';
   } catch (e) { document.getElementById('status').innerText = 'Erro: ' + e.message; }
 }
 function toggleLive() {
@@ -177,5 +190,3 @@ setInterval(tick, 1000); tick(); analisar();
 </script>
 </body>
 </html>
-
-  
