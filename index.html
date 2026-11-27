@@ -16,6 +16,9 @@
   .mbtn { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #2b3139; background: #161a1e; color: #848e9c; font-weight: bold; cursor: pointer; }
   .up-on { border-color: #0ecb81; color: #0ecb81; background: rgba(14,203,129,0.15); }
   .dn-on { border-color: #f6465d; color: #f6465d; background: rgba(246,70,93,0.15); }
+  .f-tabs { display: flex; gap: 6px; margin-top: 10px; }
+  .ftab { flex: 1; padding: 7px 4px; border-radius: 6px; border: 1px solid #2b3139; background: #161a1e; color: #848e9c; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
+  .ftab-on { border-color: #f0b90b; color: #f0b90b; background: rgba(240,185,11,0.15); }
   .alert { padding: 12px; border-radius: 8px; background: #161a1e; border: 1px solid #2b3139; font-size: 0.88rem; line-height: 1.4; margin-top: 8px; }
   .trig-up { border-color: #0ecb81; background: rgba(14,203,129,0.2); }
   .trig-dn { border-color: #f6465d; background: rgba(246,70,93,0.2); }
@@ -36,7 +39,7 @@
 </head>
 <body>
 <div class="card">
-  <div class="row"><h2>BTC/USDT • 5m (v10)</h2><div class="timer" id="relogio">00:00</div></div>
+  <div class="row"><h2>BTC/USDT • 5m (v11)</h2><div class="timer" id="relogio">00:00</div></div>
   <div class="price" id="preco">Carregando...</div>
   <div class="info" id="status">Buscando sessão...</div>
   <div class="modes">
@@ -52,14 +55,20 @@
   <h2>📐 Fibonacci da Sessão</h2>
   <div class="fgrid">
     <div class="fitem"><span>0% (Topo):</span><strong id="f0">--</strong></div>
-    <div class="fitem fhi"><span>38.2%:</span><strong id="f382">--</strong></div>
-    <div class="fitem"><span>50.0%:</span><strong id="f50">--</strong></div>
-    <div class="fitem fhi"><span>61.8%:</span><strong id="f618">--</strong></div>
+    <div class="fitem fhi" id="box382"><span>38.2%:</span><strong id="f382">--</strong></div>
+    <div class="fitem" id="box50"><span>50.0%:</span><strong id="f50">--</strong></div>
+    <div class="fitem fhi" id="box618"><span>61.8%:</span><strong id="f618">--</strong></div>
     <div class="fitem" style="grid-column: span 2;"><span>100% (Fundo):</span><strong id="f100">--</strong></div>
   </div>
 </div>
 <div class="card">
-  <h2>📊 Estatísticas de Toque (Sessão)</h2>
+  <h2>📊 Estatísticas por Nível (Sessão)</h2>
+  <div class="f-tabs">
+    <button id="tTODOS" class="ftab ftab-on" onclick="setFibo('TODOS')">Todos</button>
+    <button id="t382" class="ftab" onclick="setFibo('38.2%')">38.2%</button>
+    <button id="t500" class="ftab" onclick="setFibo('50.0%')">50.0%</button>
+    <button id="t618" class="ftab" onclick="setFibo('61.8%')">61.8%</button>
+  </div>
   <div class="sgrid">
     <div class="sbox"><div class="sval" id="cntToques">0</div><div class="slbl" id="lblToques">Toques + 1ª Verde</div></div>
     <div class="sbox"><div class="sval" id="cntSeq" style="color:#0ecb81">0</div><div class="slbl" id="lblSeq">2ª Vela Verde</div></div>
@@ -73,11 +82,19 @@
 </div>
 <div class="card"><button id="bLive" class="btn" onclick="toggleLive()">Ativar Tempo Real (3s)</button></div>
 <script>
-var timer = null, dir = 'ALTA', segRest = 300, ultBloco = null, vibBloco = null;
+var timer = null, dir = 'ALTA', fiboFiltro = 'TODOS', segRest = 300, ultBloco = null, vibBloco = null;
 function setDir(d) {
   dir = d;
   document.getElementById('bAlta').className = d === 'ALTA' ? 'mbtn up-on' : 'mbtn';
   document.getElementById('bBaixa').className = d === 'BAIXA' ? 'mbtn dn-on' : 'mbtn';
+  analisar();
+}
+function setFibo(f) {
+  fiboFiltro = f;
+  document.getElementById('tTODOS').className = f === 'TODOS' ? 'ftab ftab-on' : 'ftab';
+  document.getElementById('t382').className = f === '38.2%' ? 'ftab ftab-on' : 'ftab';
+  document.getElementById('t500').className = f === '50.0%' ? 'ftab ftab-on' : 'ftab';
+  document.getElementById('t618').className = f === '61.8%' ? 'ftab ftab-on' : 'ftab';
   analisar();
 }
 function tick() {
@@ -99,10 +116,11 @@ async function carregar() {
   var r = await fetch(u.toString()), j = await r.json();
   return j.map(function(v) { return { o: parseFloat(v.at(1)), h: parseFloat(v.at(2)), l: parseFloat(v.at(3)), c: parseFloat(v.at(4)) }; });
 }
-function tocouFibo(v, n) {
+function tocouFibo(v, n, filtro) {
   var tol = (n.max - n.min) * 0.035;
   var lv = [{ k: '38.2%', p: n.f382 }, { k: '50.0%', p: n.f50 }, { k: '61.8%', p: n.f618 }];
   for (var i = 0; i < lv.length; i++) {
+    if (filtro && filtro !== 'TODOS' && lv[i].k !== filtro) continue;
     if (dir === 'ALTA' && v.l <= lv[i].p + tol && v.c >= lv[i].p - tol) return lv[i].k;
     if (dir === 'BAIXA' && v.h >= lv[i].p - tol && v.c <= lv[i].p + tol) return lv[i].k;
   }
@@ -140,7 +158,7 @@ async function analisar() {
     document.getElementById('f50').innerText = usd(n.f50);
     document.getElementById('f618').innerText = usd(n.f618);
     document.getElementById('f100').innerText = usd(dir === 'ALTA' ? min : max);
-    var zona = tocouFibo(atual, n) || tocouFibo(ant, n), pa = checkPA(atual, ant), box = document.getElementById('alerta');
+    var zona = tocouFibo(atual, n, fiboFiltro) || tocouFibo(ant, n, fiboFiltro), pa = checkPA(atual, ant), box = document.getElementById('alerta');
     if (zona && pa && segRest <= 60) {
       box.className = dir === 'ALTA' ? 'alert trig-up' : 'alert trig-dn';
       box.innerHTML = '<strong>🚨 SINAL (' + segRest + 's)!</strong> Fibo <strong>' + zona + '</strong> + ' + pa + '. Provável 1ª vela de ' + dir + '!';
@@ -154,12 +172,14 @@ async function analisar() {
       box.innerHTML = '🎯 Preço na zona <strong>Fibo ' + zona + '</strong>. Aguardando padrão de vela ' + dir + '.';
     } else {
       box.className = 'alert';
-      box.innerHTML = 'Aguardando toque em <strong>38.2%</strong> (' + usd(n.f382) + ') ou <strong>61.8%</strong> (' + usd(n.f618) + ').';
+      box.innerHTML = fiboFiltro === 'TODOS'
+        ? 'Aguardando toque em <strong>38.2%</strong> (' + usd(n.f382) + ') ou <strong>61.8%</strong> (' + usd(n.f618) + ').'
+        : 'Monitorando exclusivamente o nível <strong>' + fiboFiltro + '</strong>.';
     }
     var gat = 0, cont = 0;
     for (var k = 1; k < fechadas.length - 1; k++) {
       var vg = fechadas[k], va = fechadas[k - 1], vs = fechadas[k + 1];
-      if (tocouFibo(vg, n) || tocouFibo(va, n)) {
+      if (tocouFibo(vg, n, fiboFiltro) || tocouFibo(va, n, fiboFiltro)) {
         if (dir === 'ALTA' && vg.c > vg.o && va.c <= va.o) { gat++; if (vs.c > vs.o) cont++; }
         if (dir === 'BAIXA' && vg.c < vg.o && va.c >= va.o) { gat++; if (vs.c < vs.o) cont++; }
       }
@@ -176,9 +196,10 @@ async function analisar() {
     document.getElementById('barU').style.width = pU + '%';
     document.getElementById('barD').style.width = pD + '%';
     document.getElementById('status').innerText = 'Binance • ' + fechadas.length + ' velas fechadas desde 00:00 UTC';
+    var txtNivel = fiboFiltro === 'TODOS' ? 'todos os níveis' : 'Fibo ' + fiboFiltro;
     document.getElementById('detalhes').innerText = gat > 0
-      ? 'De ' + gat + ' toques com 1ª vela ' + (dir === 'ALTA' ? 'verde' : 'vermelha') + ', ' + cont + ' tiveram continuação (' + pAlvo.toFixed(1) + '%).'
-      : 'Nenhum gatilho completo encontrado na sessão atual até o momento.';
+      ? 'Em ' + txtNivel + ': de ' + gat + ' toques com 1ª vela ' + (dir === 'ALTA' ? 'verde' : 'vermelha') + ', ' + cont + ' tiveram continuação (' + pAlvo.toFixed(1) + '%).'
+      : 'Nenhum gatilho completo encontrado em ' + txtNivel + ' na sessão de hoje.';
   } catch (e) { document.getElementById('status').innerText = 'Erro: ' + e.message; }
 }
 function toggleLive() {
