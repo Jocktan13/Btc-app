@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC 5m - Probabilidade de Sessão</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0b0e11;
+      color: #eaecef;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card {
+      background-color: #1e2329;
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      margin-bottom: 16px;
+    }
+    h2 { margin-top: 0; color: #f0b90b; font-size: 1.2rem; }
+    .price { font-size: 2rem; font-weight: bold; margin: 10px 0; }
+    .bar-container {
+      display: flex;
+      height: 24px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 15px 0;
+      background: #2b3139;
+    }
+    .bar-up { background-color: #0ecb81; transition: width 0.5s; }
+    .bar-down { background-color: #f6465d; transition: width 0.5s; }
+    .stats { display: flex; justify-content: space-between; font-weight: bold; }
+    .up-text { color: #0ecb81; }
+    .down-text { color: #f6465d; }
+    .info { font-size: 0.85rem; color: #848e9c; margin-top: 10px; line-height: 1.5; }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background-color: #f0b90b;
+      color: #0b0e11;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button.active { background-color: #0ecb81; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>BTC/USDT • Velas de 5 Minutos</h2>
+    <div class="price" id="precoAtual">Carregando...</div>
+    <div class="info" id="statusSessao">Buscando dados desde 00:00 UTC...</div>
+  </div>
+
+  <div class="card">
+    <h2>Probabilidade da Próxima Vela</h2>
+    <div class="stats">
+      <span class="up-text" id="percAlta">Alta: 0%</span>
+      <span class="down-text" id="percBaixa">Baixa: 0%</span>
+    </div>
+    <div class="bar-container">
+      <div class="bar-up" id="barraAlta" style="width: 50%;"></div>
+      <div class="bar-down" id="barraBaixa" style="width: 50%;"></div>
+    </div>
+    <div class="info" id="detalhesCalculo">Aguardando análise...</div>
+  </div>
+
+  <div class="card">
+    <button id="btnTempoReal" onclick="alternarTempoReal()">Ativar Tempo Real (5s)</button>
+  </div>
+
+  <script>
+    let intervalo = null;
+
+    function obterInicioSessaoUTC() {
+      const agora = new Date();
+      return Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0);
+    }
+
+    async function buscarVelas() {
+      const startTime = obterInicioSessaoUTC();
+      
+      // 1. Tenta Binance Data API
+      try {
+        const resB = await fetch(`https://binance.vision{startTime}&limit=1000`);
+        if (resB.ok) {
+          const dados = await resB.json();
+          if (Array.isArray(dados) && dados.length >= 2) {
+            return {
+              fonte: "Binance",
+              velas: dados.map(v => ({ open: parseFloat(v[1]), close: parseFloat(v[4]) }))
+            };
+          }
+        }
+      } catch (e) {}
+
+      // 2. Plano B: Coinbase Exchange (se a Binance bloquear o IP da operadora no Brasil)
+      const inicioISO = new Date(startTime).toISOString();
+      const fimISO = new Date().toISOString();
+      const resC = await fetch(`https://coinbase.com{inicioISO}&end=${fimISO}`);
+      if (!resC.ok) throw new Error("Falha ao carregar dados das corretoras.");
+      const dadosC = await resC.json();
+      dadosC.reverse();
+      return {
+        fonte: "Coinbase",
+        velas: dadosC.map(v => ({ open: parseFloat(v[3]), close: parseFloat(v[4]) }))
+      };
+    }
+
+    async function analisarMercado() {
+      try {
+        const { fonte, velas } = await buscarVelas();
+
+        const precoAtual = velas[velas.length - 1].close;
+        document.getElementById('precoAtual').innerText = "$ " + precoAtual.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+        const velasFechadas = velas.slice(0, -1);
+        
+        let totalAltas = 0;
+        let totalBaixas = 0;
+
+        const ultimaVelaFechada = velasFechadas[velasFechadas.length - 1];
+        const ultimaFoiAlta = ultimaVelaFechada.close >= ultimaVelaFechada.open;
+
+        let altasAposPadrao = 0;
+        let totalPadrao = 0;
+
+        for (let i = 0; i < velasFechadas.length; i++) {
+          const ehAlta = velasFechadas[i].close >= velasFechadas[i].open;
+
+          if (ehAlta) totalAltas++;
+          else totalBaixas++;
+
+          if (i < velasFechadas.length - 1) {
+            const proxEhAlta = velasFechadas[i + 1].close >= velasFechadas[i + 1].open;
+
+            if (ehAlta === ultimaFoiAlta) {
+              totalPadrao++;
+              if (proxEhAlta) altasAposPadrao++;
+            }
+          }
+        }
+
+        let probAlta = totalPadrao > 0
+          ? (altasAposPadrao / totalPadrao) * 100
+          : (totalAltas / velasFechadas.length) * 100;
+        
+        const probBaixa = 100 - probAlta;
+
+        document.getElementById('percAlta').innerText = "Alta: " + probAlta.toFixed(1) + "%";
+        document.getElementById('percBaixa').innerText = "Baixa: " + probBaixa.toFixed(1) + "%";
+        document.getElementById('barraAlta').style.width = probAlta + "%";
+        document.getElementById('barraBaixa').style.width = probBaixa + "%";
+
+        document.getElementById('statusSessao').innerText = 
+          "Fonte: " + fonte + " • Sessão atual: " + velasFechadas.length + " velas fechadas desde 00:00 UTC (" + totalAltas + " altas / " + totalBaixas + " baixas).";
+
+        document.getElementById('detalhesCalculo').innerText = 
+          "A última vela fechou em " + (ultimaFoiAlta ? "ALTA" : "BAIXA") + ". Nesta sessão, após uma vela de " + (ultimaFoiAlta ? "alta" : "baixa") + ", a próxima subiu " + altasAposPadrao + " de " + totalPadrao + " vezes.";
+
+      } catch (erro) {
+        document.getElementById('statusSessao').innerText = "Erro: " + erro.message;
+      }
+    }
+
+    function alternarTempoReal() {
+      const btn = document.getElementById('btnTempoReal');
+      if (intervalo) {
+        clearInterval(intervalo);
+        intervalo = null;
+        btn.innerText = "Ativar Tempo Real (5s)";
+        btn.classList.remove("active");
+      } else {
+        analisarMercado();
+        intervalo = setInterval(analisarMercado, 5000);
+        btn.innerText = "Tempo Real Ativo (Parar)";
+        btn.classList.add("active");
+      }
+    }
+
+    analisarMercado();
+  </script>
+</body>
+</html>
