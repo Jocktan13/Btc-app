@@ -24,8 +24,26 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
       margin-bottom: 16px;
     }
-    h2 { margin-top: 0; color: #f0b90b; font-size: 1.2rem; }
-    .price { font-size: 2rem; font-weight: bold; margin: 10px 0; }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    h2 { margin: 0; color: #f0b90b; font-size: 1.15rem; }
+    .timer-badge {
+      background-color: #2b3139;
+      color: #f0b90b;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .timer-urgent {
+      background-color: rgba(246, 70, 93, 0.2);
+      color: #f6465d;
+    }
+    .price { font-size: 2rem; font-weight: bold; margin: 12px 0 8px 0; }
     .bar-container {
       display: flex;
       height: 24px;
@@ -57,7 +75,10 @@
 <body>
 
   <div class="card">
-    <h2>BTC/USDT • Velas de 5 Minutos (v3)</h2>
+    <div class="header-row">
+      <h2>BTC/USDT • 5m</h2>
+      <div class="timer-badge" id="relogioVela">⏳ 00:00</div>
+    </div>
     <div class="price" id="precoAtual">Carregando...</div>
     <div class="info" id="statusSessao">Buscando dados desde 00:00 UTC...</div>
   </div>
@@ -81,6 +102,35 @@
 
   <script>
     let intervalo = null;
+    let ultimoBloco5m = null;
+
+    // Atualiza o relógio regressivo da vela de 5 minutos a cada segundo
+    function atualizarContagemRegressiva() {
+      const agoraMs = Date.now();
+      const duracaoVelaMs = 5 * 60 * 1000; // 300.000 ms (5 minutos)
+      const blocoAtual = Math.floor(agoraMs / duracaoVelaMs);
+      const restanteMs = duracaoVelaMs - (agoraMs % duracaoVelaMs);
+
+      const minutos = Math.floor(restanteMs / 60000);
+      const segundos = Math.floor((restanteMs % 60000) / 1000);
+
+      const textoTempo = String(minutos).padStart(2, '0') + ":" + String(segundos).padStart(2, '0');
+      const badge = document.getElementById('relogioVela');
+      badge.innerText = "⏳ " + textoTempo;
+
+      // Destaca em vermelho nos últimos 30 segundos antes do fechamento
+      if (restanteMs <= 30000) {
+        badge.classList.add('timer-urgent');
+      } else {
+        badge.classList.remove('timer-urgent');
+      }
+
+      // Quando a vela vira (novo bloco de 5m), atualiza os dados automaticamente
+      if (ultimoBloco5m !== null && blocoAtual !== ultimoBloco5m) {
+        setTimeout(analisarMercado, 1500);
+      }
+      ultimoBloco5m = blocoAtual;
+    }
 
     function obterInicioSessaoMsUTC() {
       const agora = new Date();
@@ -92,7 +142,7 @@
       const inicioSeg = Math.floor(inicioMs / 1000);
       const erros = [];
 
-      // 1. Binance Data Vision (Base64: https://binance.vision)
+      // 1. Binance Data Vision
       try {
         const baseB = atob("aHR0cHM6Ly9kYXRhLWFwaS5iaW5hbmNlLnZpc2lvbi9hcGkvdjMva2xpbmVz");
         const urlB = new URL(baseB);
@@ -114,7 +164,7 @@
         erros.push("Binance: " + e.message);
       }
 
-      // 2. CryptoCompare (Base64: https://cryptocompare.com)
+      // 2. CryptoCompare (Plano B)
       try {
         const baseCC = atob("aHR0cHM6Ly9taW4tYXBpLmNyeXB0b2NvbXBhcmUuY29tL2RhdGEvdjIvaGlzdG9taW51dGU=");
         const urlCC = new URL(baseCC);
@@ -211,6 +261,9 @@
       }
     }
 
+    // Inicia o relógio de 1 em 1 segundo e busca os dados iniciais
+    setInterval(atualizarContagemRegressiva, 1000);
+    atualizarContagemRegressiva();
     analisarMercado();
   </script>
 </body>
