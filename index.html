@@ -20,8 +20,8 @@
   .ftab { flex: 1; padding: 7px 4px; border-radius: 6px; border: 1px solid #2b3139; background: #161a1e; color: #848e9c; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
   .ftab-on { border-color: #f0b90b; color: #f0b90b; background: rgba(240,185,11,0.15); }
   .alert { padding: 12px; border-radius: 8px; background: #161a1e; border: 1px solid #2b3139; font-size: 0.88rem; line-height: 1.4; margin-top: 8px; }
-  .trig-up { border-color: #0ecb81; background: rgba(14,203,129,0.2); }
-  .trig-dn { border-color: #f6465d; background: rgba(246,70,93,0.2); }
+  .trig-up { border-color: #0ecb81; background: rgba(14,203,129,0.22); }
+  .trig-dn { border-color: #f6465d; background: rgba(246,70,93,0.22); }
   .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; font-size: 0.84rem; }
   .fitem { background: #161a1e; padding: 7px 9px; border-radius: 6px; display: flex; justify-content: space-between; }
   .fhi { border-left: 3px solid #f0b90b; background: #252a32; }
@@ -39,20 +39,20 @@
 </head>
 <body>
 <div class="card">
-  <div class="row"><h2>BTC/USDT • 5m (v12)</h2><div class="timer" id="relogio">00:00</div></div>
+  <div class="row"><h2>BTC/USDT • 5m (v14)</h2><div class="timer" id="relogio">00:00</div></div>
   <div class="price" id="preco">Carregando...</div>
-  <div class="info" id="status">Buscando sessão...</div>
+  <div class="info" id="status">Buscando estrutura de ondas...</div>
   <div class="modes">
     <button id="bAlta" class="mbtn up-on" onclick="setDir('ALTA')">▲ Buscar ALTA</button>
     <button id="bBaixa" class="mbtn" onclick="setDir('BAIXA')">▼ Buscar BAIXA</button>
   </div>
 </div>
 <div class="card">
-  <h2>⚡ Radar Price Action (Último Minuto)</h2>
-  <div class="alert" id="alerta">Monitorando zonas de Fibonacci...</div>
+  <h2>⚡ Radar de Ciclo & Price Action</h2>
+  <div class="alert" id="alerta">Analisando estrutura do movimento...</div>
 </div>
 <div class="card">
-  <h2>📐 Fibonacci da Perna Atual (3h)</h2>
+  <h2>📐 Fibonacci da Última Perna Real</h2>
   <div class="fgrid">
     <div class="fitem"><span>0% (Extremo):</span><strong id="f0">--</strong></div>
     <div class="fitem fhi"><span>38.2%:</span><strong id="f382">--</strong></div>
@@ -70,7 +70,7 @@
     <button id="t618" class="ftab" onclick="setFibo('61.8%')">61.8%</button>
   </div>
   <div class="sgrid">
-    <div class="sbox"><div class="sval" id="cntToques">0</div><div class="slbl" id="lblToques">Toques + 1ª Verde</div></div>
+    <div class="sbox"><div class="sval" id="cntToques">0</div><div class="slbl" id="lblToques">Ciclos + 1ª Verde</div></div>
     <div class="sbox"><div class="sval" id="cntSeq" style="color:#0ecb81">0</div><div class="slbl" id="lblSeq">2ª Vela Verde</div></div>
   </div>
   <div class="row" style="font-weight:bold; font-size:0.9rem; margin-top:12px;">
@@ -103,7 +103,7 @@ function tick() {
   var m = String(Math.floor(rest / 60000)).padStart(2, '0'), s = String(Math.floor((rest % 60000) / 1000)).padStart(2, '0');
   var el = document.getElementById('relogio');
   el.innerText = m + ':' + s;
-  el.className = segRest <= 60 ? 'timer urgent' : 'timer';
+  el.className = segRest <= 90 ? 'timer urgent' : 'timer';
   if (ultBloco !== null && bloco !== ultBloco) setTimeout(analisar, 1200);
   ultBloco = bloco;
 }
@@ -116,16 +116,14 @@ async function carregar() {
   var r = await fetch(u.toString()), j = await r.json();
   return j.map(function(v) { return { o: parseFloat(v.at(1)), h: parseFloat(v.at(2)), l: parseFloat(v.at(3)), c: parseFloat(v.at(4)) }; });
 }
-function calcNiveis(lista) {
-  var max = -Infinity, min = Infinity;
-  for (var i = 0; i < lista.length; i++) { if (lista[i].h > max) max = lista[i].h; if (lista[i].l < min) min = lista[i].l; }
-  var amp = max - min;
+function montarFibo(base, extremo) {
+  var amp = extremo - base;
   return dir === 'ALTA'
-    ? { max: max, min: min, f382: max - amp * 0.382, f50: max - amp * 0.5, f618: max - amp * 0.618 }
-    : { max: max, min: min, f382: min + amp * 0.382, f50: min + amp * 0.5, f618: min + amp * 0.618 };
+    ? { base: base, ext: extremo, amp: amp, f382: extremo - amp * 0.382, f50: extremo - amp * 0.5, f618: extremo - amp * 0.618 }
+    : { base: base, ext: extremo, amp: base - extremo, f382: extremo + (base - extremo) * 0.382, f50: extremo + (base - extremo) * 0.5, f618: extremo + (base - extremo) * 0.618 };
 }
 function tocouFibo(v, n, filtro) {
-  var tol = (n.max - n.min) * 0.05;
+  var tol = n.amp * 0.025;
   var lv = [{ k: '38.2%', p: n.f382 }, { k: '50.0%', p: n.f50 }, { k: '61.8%', p: n.f618 }];
   for (var i = 0; i < lv.length; i++) {
     if (filtro && filtro !== 'TODOS' && lv[i].k !== filtro) continue;
@@ -134,77 +132,124 @@ function tocouFibo(v, n, filtro) {
   }
   return null;
 }
-function checkPA(v, ant) {
-  var rng = Math.max(v.h - v.l, 0.01), corpo = Math.abs(v.c - v.o) / rng;
+function checkPAForte(v, ant, mediaRng) {
+  var rng = Math.max(v.h - v.l, 0.01);
+  if (rng < mediaRng * 0.85) return null;
+  var corpo = Math.abs(v.c - v.o), pctCorpo = corpo / rng;
   if (dir === 'ALTA') {
-    var verde = v.c > v.o, pavio = (Math.min(v.o, v.c) - v.l) / rng;
-    if (verde && v.c > Math.max(ant.o, ant.c)) return 'Engolfo de Alta forte';
-    if (pavio >= 0.45 && v.c >= v.o) return 'Rejeição de fundo (Martelo)';
-    if (verde && corpo >= 0.55) return 'Corpo comprador firme';
+    var verde = v.c > v.o, pavioInf = (Math.min(v.o, v.c) - v.l) / rng;
+    if (verde && v.c > Math.max(ant.o, ant.c) && pctCorpo >= 0.60) return 'Engolfo de Alta claro';
+    if (pavioInf >= 0.55 && v.c >= v.o) return 'Martelo forte (rejeição clara)';
+    if (verde && pctCorpo >= 0.72) return 'Vela de força compradora';
     return null;
   } else {
-    var verm = v.c < v.o, pavioS = (v.h - Math.max(v.o, v.c)) / rng;
-    if (verm && v.c < Math.min(ant.o, ant.c)) return 'Engolfo de Baixa forte';
-    if (pavioS >= 0.45 && v.c <= v.o) return 'Rejeição de topo (Pavio)';
-    if (verm && corpo >= 0.55) return 'Corpo vendedor firme';
+    var verm = v.c < v.o, pavioSup = (v.h - Math.max(v.o, v.c)) / rng;
+    if (verm && v.c < Math.min(ant.o, ant.c) && pctCorpo >= 0.60) return 'Engolfo de Baixa claro';
+    if (pavioSup >= 0.55 && v.c <= v.o) return 'Estrela Cadente (rejeição clara)';
+    if (verm && pctCorpo >= 0.72) return 'Vela de força vendedora';
     return null;
   }
+}
+function simularCiclos(velas) {
+  var soma = 0;
+  for (var i = 0; i < velas.length; i++) soma += (velas[i].h - velas[i].l);
+  var mediaRng = soma / Math.max(velas.length, 1);
+  var minImpulso = mediaRng * 3.2;
+  var base = dir === 'ALTA' ? velas[0].l : velas[0].h;
+  var ext = dir === 'ALTA' ? velas[0].h : velas[0].l;
+  var fase = 'BUSCANDO_IMPULSO', fiboAtiva = null, gat = 0, cont = 0;
+  var ultimoEstado = { fase: fase, fibo: null, zona: null };
+  for (var k = 1; k < velas.length; k++) {
+    var v = velas[k], ant = velas[k - 1], ehAtual = (k === velas.length - 1);
+    if (dir === 'ALTA') {
+      if (fase === 'BUSCANDO_IMPULSO') {
+        if (v.l < base) { base = v.l; ext = v.h; }
+        if (v.h > ext) ext = v.h;
+        if ((ext - base) >= minImpulso && v.c < ext - (ext - base) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+      } else if (fase === 'AGUARDANDO_RETRACAO') {
+        if (v.h > ext) { ext = v.h; fiboAtiva = montarFibo(base, ext); }
+        if (v.l < base) { base = v.l; ext = v.h; fase = 'BUSCANDO_IMPULSO'; fiboAtiva = null; }
+        else if (fiboAtiva) {
+          var z = tocouFibo(v, fiboAtiva, fiboFiltro);
+          if (!ehAtual && z && v.c > v.o) {
+            gat++; if (k + 1 < velas.length && velas[k + 1].c > velas[k + 1].o) cont++;
+            fase = 'CICLO_ENCERRADO'; base = v.l; ext = v.h;
+          }
+        }
+      } else if (fase === 'CICLO_ENCERRADO') {
+        if (v.l < base) base = v.l; if (v.h > ext) ext = v.h;
+        if ((ext - base) >= minImpulso && v.c < ext - (ext - base) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+      }
+    } else {
+      if (fase === 'BUSCANDO_IMPULSO') {
+        if (v.h > base) { base = v.h; ext = v.l; }
+        if (v.l < ext) ext = v.l;
+        if ((base - ext) >= minImpulso && v.c > ext + (base - ext) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+      } else if (fase === 'AGUARDANDO_RETRACAO') {
+        if (v.l < ext) { ext = v.l; fiboAtiva = montarFibo(base, ext); }
+        if (v.h > base) { base = v.h; ext = v.l; fase = 'BUSCANDO_IMPULSO'; fiboAtiva = null; }
+        else if (fiboAtiva) {
+          var zB = tocouFibo(v, fiboAtiva, fiboFiltro);
+          if (!ehAtual && zB && v.c < v.o) {
+            gat++; if (k + 1 < velas.length && velas[k + 1].c < velas[k + 1].o) cont++;
+            fase = 'CICLO_ENCERRADO'; base = v.h; ext = v.l;
+          }
+        }
+      } else if (fase === 'CICLO_ENCERRADO') {
+        if (v.h > base) base = v.h; if (v.l < ext) ext = v.l;
+        if ((base - ext) >= minImpulso && v.c > ext + (base - ext) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+      }
+    }
+    if (ehAtual) {
+      var zAt = fiboAtiva ? (tocouFibo(v, fiboAtiva, fiboFiltro) || tocouFibo(ant, fiboAtiva, fiboFiltro)) : null;
+      ultimoEstado = { fase: fase, fibo: fiboAtiva, zona: zAt, pa: checkPAForte(v, ant, mediaRng) };
+    }
+  }
+  return { gat: gat, cont: cont, estado: ultimoEstado };
 }
 async function analisar() {
   try {
     var velas = await carregar();
-    var atual = velas[velas.length - 1], fechadas = velas.slice(0, -1), ant = fechadas[fechadas.length - 1];
-    document.getElementById('preco').innerText = usd(atual.c);
-    var pernaAtual = velas.slice(-36);
-    var n = calcNiveis(pernaAtual);
-    document.getElementById('f0').innerText = usd(dir === 'ALTA' ? n.max : n.min);
-    document.getElementById('f382').innerText = usd(n.f382);
-    document.getElementById('f50').innerText = usd(n.f50);
-    document.getElementById('f618').innerText = usd(n.f618);
-    document.getElementById('f100').innerText = usd(dir === 'ALTA' ? n.min : n.max);
-    var zona = tocouFibo(atual, n, fiboFiltro) || tocouFibo(ant, n, fiboFiltro), pa = checkPA(atual, ant), box = document.getElementById('alerta');
-    if (zona && pa && segRest <= 60) {
+    document.getElementById('preco').innerText = usd(velas[velas.length - 1].c);
+    var res = simularCiclos(velas), st = res.estado, n = st.fibo, box = document.getElementById('alerta');
+    if (n) {
+      document.getElementById('f0').innerText = usd(n.ext); document.getElementById('f382').innerText = usd(n.f382);
+      document.getElementById('f50').innerText = usd(n.f50); document.getElementById('f618').innerText = usd(n.f618); document.getElementById('f100').innerText = usd(n.base);
+    } else {
+      document.getElementById('f0').innerText = '--'; document.getElementById('f382').innerText = '--';
+      document.getElementById('f50').innerText = '--'; document.getElementById('f618').innerText = '--'; document.getElementById('f100').innerText = '--';
+    }
+    if (st.fase !== 'AGUARDANDO_RETRACAO') {
+      box.className = 'alert';
+      box.innerHTML = '⏸️ <strong>Ciclo em pausa natural:</strong> Mercado lateral ou sem nova pernada de impulso após o último ciclo. Aguardando nova pernada antes de buscar retração.';
+    } else if (st.zona && st.pa && segRest <= 90) {
       box.className = dir === 'ALTA' ? 'alert trig-up' : 'alert trig-dn';
-      box.innerHTML = '<strong>🚨 SINAL (' + segRest + 's)!</strong> Fibo <strong>' + zona + '</strong> + ' + pa + '. Provável 1ª vela de ' + dir + '!';
+      box.innerHTML = '<strong>🚨 UMA PROVÁVEL BOA ENTRADA (' + segRest + 's)!</strong><br>Fibo <strong>' + st.zona + '</strong> • ' + st.pa + '.';
       var b = Math.floor(Date.now() / 300000);
       if (vibBloco !== b && navigator.vibrate) { navigator.vibrate(400); vibBloco = b; }
-    } else if (zona && pa) {
+    } else if (st.zona && st.pa) {
       box.className = 'alert';
-      box.innerHTML = '⏳ <strong>Pré-sinal Fibo ' + zona + ':</strong> ' + pa + '. Aguardando último minuto (' + segRest + 's).';
-    } else if (zona) {
+      box.innerHTML = '👀 <strong>Formando sinal (' + st.zona + '):</strong> ' + st.pa + '. Aguardando últimos 90s (' + segRest + 's).';
+    } else if (st.zona) {
       box.className = 'alert';
-      box.innerHTML = '🎯 Preço na zona <strong>Fibo ' + zona + '</strong>. Aguardando padrão de vela ' + dir + '.';
+      box.innerHTML = '🎯 Retração na <strong>Fibo ' + st.zona + '</strong>. Aguardando vela forte de ' + dir + '.';
     } else {
       box.className = 'alert';
-      box.innerHTML = fiboFiltro === 'TODOS'
-        ? 'Aguardando toque em <strong>38.2%</strong> (' + usd(n.f382) + ') ou <strong>61.8%</strong> (' + usd(n.f618) + ').'
-        : 'Monitorando exclusivamente o nível <strong>' + fiboFiltro + '</strong>.';
+      box.innerHTML = '📈 Pernada ativa! Aguardando retração até <strong>38.2%</strong> (' + usd(n.f382) + ') ou <strong>61.8%</strong> (' + usd(n.f618) + ').';
     }
-    var gat = 0, cont = 0;
-    for (var k = 12; k < fechadas.length - 1; k++) {
-      var nHist = calcNiveis(fechadas.slice(Math.max(0, k - 36), k));
-      var vg = fechadas[k], va = fechadas[k - 1], vs = fechadas[k + 1];
-      if (tocouFibo(vg, nHist, fiboFiltro) || tocouFibo(va, nHist, fiboFiltro)) {
-        if (dir === 'ALTA' && vg.c > vg.o) { gat++; if (vs.c > vs.o) cont++; }
-        if (dir === 'BAIXA' && vg.c < vg.o) { gat++; if (vs.c < vs.o) cont++; }
-      }
-    }
-    document.getElementById('cntToques').innerText = gat;
-    document.getElementById('cntSeq').innerText = cont;
+    document.getElementById('cntToques').innerText = res.gat;
+    document.getElementById('cntSeq').innerText = res.cont;
     document.getElementById('cntSeq').style.color = dir === 'ALTA' ? '#0ecb81' : '#f6465d';
-    document.getElementById('lblToques').innerText = dir === 'ALTA' ? 'Toques + 1ª Verde' : 'Toques + 1ª Vermelha';
+    document.getElementById('lblToques').innerText = dir === 'ALTA' ? 'Ciclos + 1ª Verde' : 'Ciclos + 1ª Vermelha';
     document.getElementById('lblSeq').innerText = dir === 'ALTA' ? '2ª Vela Verde' : '2ª Vela Vermelha';
-    var pAlvo = gat > 0 ? (cont / gat) * 100 : 50;
-    var pU = dir === 'ALTA' ? pAlvo : 100 - pAlvo, pD = 100 - pU;
-    document.getElementById('pAlta').innerText = 'Alta: ' + pU.toFixed(1) + '%';
-    document.getElementById('pBaixa').innerText = 'Baixa: ' + pD.toFixed(1) + '%';
-    document.getElementById('barU').style.width = pU + '%';
-    document.getElementById('barD').style.width = pD + '%';
-    document.getElementById('status').innerText = 'Binance • ' + fechadas.length + ' velas fechadas desde 00:00 UTC';
+    var pAlvo = res.gat > 0 ? (res.cont / res.gat) * 100 : 50, pU = dir === 'ALTA' ? pAlvo : 100 - pAlvo, pD = 100 - pU;
+    document.getElementById('pAlta').innerText = 'Alta: ' + pU.toFixed(1) + '%'; document.getElementById('pBaixa').innerText = 'Baixa: ' + pD.toFixed(1) + '%';
+    document.getElementById('barU').style.width = pU + '%'; document.getElementById('barD').style.width = pD + '%';
+    document.getElementById('status').innerText = 'Binance • ' + (velas.length - 1) + ' velas fechadas desde 00:00 UTC';
     var txtNivel = fiboFiltro === 'TODOS' ? 'todos os níveis' : 'Fibo ' + fiboFiltro;
-    document.getElementById('detalhes').innerText = gat > 0
-      ? 'Em ' + txtNivel + ': de ' + gat + ' toques com 1ª vela ' + (dir === 'ALTA' ? 'verde' : 'vermelha') + ', ' + cont + ' tiveram continuação (' + pAlvo.toFixed(1) + '%).'
-      : 'Nenhum gatilho completo encontrado em ' + txtNivel + ' na sessão de hoje.';
+    document.getElementById('detalhes').innerText = res.gat > 0
+      ? 'Ciclos naturais em ' + txtNivel + ': de ' + res.gat + ' pernadas com retração + 1ª vela, ' + res.cont + ' tiveram continuação (' + pAlvo.toFixed(1) + '%).'
+      : 'Nenhum ciclo completo em ' + txtNivel + ' na sessão de hoje.';
   } catch (e) { document.getElementById('status').innerText = 'Erro: ' + e.message; }
 }
 function toggleLive() {
