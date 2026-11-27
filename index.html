@@ -92,28 +92,39 @@
       
       // 1. Tenta Binance Data API
       try {
-        const resB = await fetch(`https://binance.vision{startTime}&limit=1000`);
+        const urlB = new URL("https://binance.vision");
+        urlB.pathname = ["api", "v3", "klines"].join("/");
+        urlB.searchParams.set("symbol", "BTCUSDT");
+        urlB.searchParams.set("interval", "5m");
+        urlB.searchParams.set("startTime", startTime.toString());
+        urlB.searchParams.set("limit", "1000");
+
+        const resB = await fetch(urlB.toString());
         if (resB.ok) {
           const dados = await resB.json();
           if (Array.isArray(dados) && dados.length >= 2) {
             return {
               fonte: "Binance",
-              velas: dados.map(v => ({ open: parseFloat(v[1]), close: parseFloat(v[4]) }))
+              velas: dados.map(v => ({ open: parseFloat(v.at(1)), close: parseFloat(v.at(4)) }))
             };
           }
         }
       } catch (e) {}
 
-      // 2. Plano B: Coinbase Exchange (se a Binance bloquear o IP da operadora no Brasil)
-      const inicioISO = new Date(startTime).toISOString();
-      const fimISO = new Date().toISOString();
-      const resC = await fetch(`https://coinbase.com{inicioISO}&end=${fimISO}`);
+      // 2. Plano B: Coinbase Exchange
+      const urlC = new URL("https://coinbase.com");
+      urlC.pathname = ["products", "BTC-USD", "candles"].join("/");
+      urlC.searchParams.set("granularity", "300");
+      urlC.searchParams.set("start", new Date(startTime).toISOString());
+      urlC.searchParams.set("end", new Date().toISOString());
+
+      const resC = await fetch(urlC.toString());
       if (!resC.ok) throw new Error("Falha ao carregar dados das corretoras.");
       const dadosC = await resC.json();
       dadosC.reverse();
       return {
         fonte: "Coinbase",
-        velas: dadosC.map(v => ({ open: parseFloat(v[3]), close: parseFloat(v[4]) }))
+        velas: dadosC.map(v => ({ open: parseFloat(v.at(3)), close: parseFloat(v.at(4)) }))
       };
     }
 
@@ -121,7 +132,7 @@
       try {
         const { fonte, velas } = await buscarVelas();
 
-        const precoAtual = velas[velas.length - 1].close;
+        const precoAtual = velas.at(-1).close;
         document.getElementById('precoAtual').innerText = "$ " + precoAtual.toLocaleString('en-US', { minimumFractionDigits: 2 });
 
         const velasFechadas = velas.slice(0, -1);
@@ -129,20 +140,20 @@
         let totalAltas = 0;
         let totalBaixas = 0;
 
-        const ultimaVelaFechada = velasFechadas[velasFechadas.length - 1];
+        const ultimaVelaFechada = velasFechadas.at(-1);
         const ultimaFoiAlta = ultimaVelaFechada.close >= ultimaVelaFechada.open;
 
         let altasAposPadrao = 0;
         let totalPadrao = 0;
 
         for (let i = 0; i < velasFechadas.length; i++) {
-          const ehAlta = velasFechadas[i].close >= velasFechadas[i].open;
+          const ehAlta = velasFechadas.at(i).close >= velasFechadas.at(i).open;
 
           if (ehAlta) totalAltas++;
           else totalBaixas++;
 
           if (i < velasFechadas.length - 1) {
-            const proxEhAlta = velasFechadas[i + 1].close >= velasFechadas[i + 1].open;
+            const proxEhAlta = velasFechadas.at(i + 1).close >= velasFechadas.at(i + 1).open;
 
             if (ehAlta === ultimaFoiAlta) {
               totalPadrao++;
