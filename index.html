@@ -178,9 +178,10 @@ function simularCiclos(velas) {
   var soma = 0;
   for (var i = 0; i < velas.length; i++) soma += (velas[i].h - velas[i].l);
   var mediaRng = soma / Math.max(velas.length, 1);
-  var minImpulso = mediaRng * 3.2;
-  var base = dir === 'ALTA' ? velas.l : velas.h;
-  var ext = dir === 'ALTA' ? velas.h : velas.l;
+  var minImpulso = mediaRng * 2.5;
+  var primeira = velas.at(0);
+  var base = dir === 'ALTA' ? primeira.l : primeira.h;
+  var ext = dir === 'ALTA' ? primeira.h : primeira.l;
   var fase = 'BUSCANDO_IMPULSO', fiboAtiva = null, gat = 0, cont = 0;
   var ultimoEstado = { fase: fase, fibo: null, zona: null };
   for (var k = 1; k < velas.length; k++) {
@@ -189,7 +190,7 @@ function simularCiclos(velas) {
       if (fase === 'BUSCANDO_IMPULSO') {
         if (v.l < base) { base = v.l; ext = v.h; }
         if (v.h > ext) ext = v.h;
-        if ((ext - base) >= minImpulso && v.c < ext - (ext - base) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+        if ((ext - base) >= minImpulso && v.c < ext - (ext - base) * 0.22) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
       } else if (fase === 'AGUARDANDO_RETRACAO') {
         if (v.h > ext) { ext = v.h; fiboAtiva = montarFibo(base, ext); }
         if (v.l < base) { base = v.l; ext = v.h; fase = 'BUSCANDO_IMPULSO'; fiboAtiva = null; }
@@ -202,13 +203,13 @@ function simularCiclos(velas) {
         }
       } else if (fase === 'CICLO_ENCERRADO') {
         if (v.l < base) base = v.l; if (v.h > ext) ext = v.h;
-        if ((ext - base) >= minImpulso && v.c < ext - (ext - base) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+        if ((ext - base) >= minImpulso && v.c < ext - (ext - base) * 0.22) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
       }
     } else {
       if (fase === 'BUSCANDO_IMPULSO') {
         if (v.h > base) { base = v.h; ext = v.l; }
         if (v.l < ext) ext = v.l;
-        if ((base - ext) >= minImpulso && v.c > ext + (base - ext) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+        if ((base - ext) >= minImpulso && v.c > ext + (base - ext) * 0.22) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
       } else if (fase === 'AGUARDANDO_RETRACAO') {
         if (v.l < ext) { ext = v.l; fiboAtiva = montarFibo(base, ext); }
         if (v.h > base) { base = v.h; ext = v.l; fase = 'BUSCANDO_IMPULSO'; fiboAtiva = null; }
@@ -221,7 +222,7 @@ function simularCiclos(velas) {
         }
       } else if (fase === 'CICLO_ENCERRADO') {
         if (v.h > base) base = v.h; if (v.l < ext) ext = v.l;
-        if ((base - ext) >= minImpulso && v.c > ext + (base - ext) * 0.25) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
+        if ((base - ext) >= minImpulso && v.c > ext + (base - ext) * 0.22) { fiboAtiva = montarFibo(base, ext); fase = 'AGUARDANDO_RETRACAO'; }
       }
     }
     if (ehAtual) {
@@ -250,7 +251,7 @@ async function analisar() {
       box.className = dir === 'ALTA' ? 'alert trig-up' : 'alert trig-dn';
       box.innerHTML = '<strong>🚨 UMA PROVÁVEL BOA ENTRADA (' + segRest + 's)!</strong><br>Fibo <strong>' + st.zona + '</strong> • ' + st.pa + '.';
       var b = Math.floor(Date.now() / 300000);
-      if (vibBloco !== b && navigator.vibrate) { navigator.vibrate(); vibBloco = b; }
+      if (vibBloco !== b && navigator.vibrate) { navigator.vibrate(400); vibBloco = b; }
     } else if (st.zona && st.pa) {
       box.className = 'alert';
       box.innerHTML = '👀 <strong>Formando sinal (' + st.zona + '):</strong> ' + st.pa + '. Aguardando últimos 90s (' + segRest + 's).';
