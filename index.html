@@ -46,8 +46,6 @@
       border: 1px solid #f0b90b;
     }
     .price { font-size: 1.9rem; font-weight: bold; margin: 10px 0 6px 0; }
-    
-    /* Seletor Alta / Baixa */
     .mode-selector {
       display: flex;
       gap: 8px;
@@ -74,8 +72,6 @@
       border-color: #f6465d;
       color: #f6465d;
     }
-
-    /* Alerta Antecipado (1 min antes) */
     .alert-box {
       border-radius: 10px;
       padding: 14px;
@@ -101,8 +97,6 @@
       50% { opacity: 0.78; }
       100% { opacity: 1; }
     }
-
-    /* Tabela Fibonacci */
     .fibo-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -122,7 +116,6 @@
       border-left-color: #f0b90b;
       background: #252a32;
     }
-
     .bar-container {
       display: flex;
       height: 22px;
@@ -137,7 +130,6 @@
     .up-text { color: #0ecb81; }
     .down-text { color: #f6465d; }
     .info { font-size: 0.82rem; color: #848e9c; margin-top: 8px; line-height: 1.45; }
-    
     .action-btn {
       width: 100%;
       padding: 12px;
@@ -154,11 +146,10 @@
 </head>
 <body>
 
-  <!-- Card 1: Preço, Relógio e Direção -->
   <div class="card">
     <div class="header-row">
-      <h2>BTC/USDT • 5m (Fibo)</h2>
-      <div class="timer-badge" id="relogioVela">⏳ 00:00</div>
+      <h2>BTC/USDT • 5m (v6)</h2>
+      <div class="timer-badge" id="relogioVela">00:00</div>
     </div>
     <div class="price" id="precoAtual">Carregando...</div>
     <div class="info" id="statusSessao">Buscando topo e fundo da sessão...</div>
@@ -169,7 +160,6 @@
     </div>
   </div>
 
-  <!-- Card 2: Alerta Antecipado de Price Action (1 min antes) -->
   <div class="card">
     <h2 style="margin-bottom: 10px;">⚡ Radar Price Action (Último Minuto)</h2>
     <div class="alert-box" id="boxAlerta">
@@ -177,7 +167,6 @@
     </div>
   </div>
 
-  <!-- Card 3: Níveis de Fibonacci da Sessão -->
   <div class="card">
     <h2>📐 Fibonacci da Sessão (Topo/Fundo)</h2>
     <div class="fibo-grid" id="gridFibo">
@@ -189,7 +178,6 @@
     </div>
   </div>
 
-  <!-- Card 4: Probabilidade da Próxima Vela -->
   <div class="card">
     <h2>📊 Chance da Próxima Vela (Pós-Gatilho)</h2>
     <div class="stats">
@@ -208,11 +196,11 @@
   </div>
 
   <script>
-    let intervalo = null;
-    let ultimoBloco5m = null;
-    let direcaoSelecionada = 'ALTA'; // 'ALTA' ou 'BAIXA'
-    let segundosRestantes = 300;
-    let ultimoSomTocadoBloco = null;
+    var intervalo = null;
+    var ultimoBloco5m = null;
+    var direcaoSelecionada = 'ALTA';
+    var segundosRestantes = 300;
+    var ultimoSomTocadoBloco = null;
 
     function selecionarDirecao(dir) {
       direcaoSelecionada = dir;
@@ -221,12 +209,12 @@
       analisarMercado();
     }
 
-    // Beep discreto via Web Audio API para aviso antecipado
     function emitirAlertaSonoro() {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        var ctx = new AudioCtx();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(880, ctx.currentTime);
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
@@ -238,20 +226,19 @@
     }
 
     function atualizarContagemRegressiva() {
-      const agoraMs = Date.now();
-      const duracaoVelaMs = 5 * 60 * 1000;
-      const blocoAtual = Math.floor(agoraMs / duracaoVelaMs);
-      const restanteMs = duracaoVelaMs - (agoraMs % duracaoVelaMs);
+      var agoraMs = Date.now();
+      var duracaoVelaMs = 300000;
+      var blocoAtual = Math.floor(agoraMs / duracaoVelaMs);
+      var restanteMs = duracaoVelaMs - (agoraMs % duracaoVelaMs);
       segundosRestantes = Math.floor(restanteMs / 1000);
 
-      const minutos = Math.floor(restanteMs / 60000);
-      const segundos = Math.floor((restanteMs % 60000) / 1000);
+      var minutos = Math.floor(restanteMs / 60000);
+      var segundos = Math.floor((restanteMs % 60000) / 1000);
 
-      const textoTempo = String(minutos).padStart(2, '0') + ":" + String(segundos).padStart(2, '0');
-      const badge = document.getElementById('relogioVela');
-      badge.innerText = "⏳ " + textoTempo;
+      var textoTempo = String(minutos).padStart(2, '0') + ':' + String(segundos).padStart(2, '0');
+      var badge = document.getElementById('relogioVela');
+      badge.innerText = '⏱ ' + textoTempo;
 
-      // Destaca nos últimos 60 segundos (janela de aviso antecipado)
       if (segundosRestantes <= 60) {
         badge.classList.add('timer-urgent');
       } else {
@@ -265,44 +252,58 @@
     }
 
     function obterInicioSessaoMsUTC() {
-      const agora = new Date();
+      var agora = new Date();
       return Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 0, 0, 0);
     }
 
     async function buscarVelas() {
-      const inicioMs = obterInicioSessaoMsUTC();
-      const inicioSeg = Math.floor(inicioMs / 1000);
+      var inicioMs = obterInicioSessaoMsUTC();
+      var inicioSeg = Math.floor(inicioMs / 1000);
 
-      // 1. Binance Data Vision
       try {
-        const baseB = atob("aHR0cHM6Ly9kYXRhLWFwaS5iaW5hbmNlLnZpc2lvbi9hcGkvdjMva2xpbmVz");
-        const urlB = new URL(baseB);
-        urlB.searchParams.set("symbol", "BTCUSDT");
-        urlB.searchParams.set("interval", "5m");
-        urlB.searchParams.set("startTime", inicioMs.toString());
-        urlB.searchParams.set("limit", "1000");
+        var baseB = atob('aHR0cHM6Ly9kYXRhLWFwaS5iaW5hbmNlLnZpc2lvbi9hcGkvdjMva2xpbmVz');
+        var urlB = new URL(baseB);
+        urlB.searchParams.set('symbol', 'BTCUSDT');
+        urlB.searchParams.set('interval', '5m');
+        urlB.searchParams.set('startTime', inicioMs.toString());
+        urlB.searchParams.set('limit', '1000');
 
-        const resB = await fetch(urlB.toString());
+        var resB = await fetch(urlB.toString());
         if (resB.ok) {
-          const dadosB = await resB.json();
+          var dadosB = await resB.json();
           if (Array.isArray(dadosB) && dadosB.length >= 5) {
             return {
-              fonte: "Binance",
-              velas: dadosB.map(v => ({
-                time: v.at(0),
-                open: parseFloat(v.at(1)),
-                high: parseFloat(v.at(2)),
-                low: parseFloat(v.at(3)),
-                close: parseFloat(v.at(4))
-              }))
+              fonte: 'Binance',
+              velas: dadosB.map(function(v) {
+                return {
+                  time: v.at(0),
+                  open: parseFloat(v.at(1)),
+                  high: parseFloat(v.at(2)),
+                  low: parseFloat(v.at(3)),
+                  close: parseFloat(v.at(4))
+                };
+              })
             };
           }
         }
       } catch (e) {}
 
-      // 2. Plano B: CryptoCompare
-      const baseCC = atob("aHR0cHM6Ly9taW4tYXBpLmNyeXB0b2NvbXBhcmUuY29tL2RhdGEvdjIvaGlzdG9taW51dGU=");
-      const urlCC = new URL(baseCC);
-      urlCC.searchParams.set("fsym", "BTC");
-      urlCC.searchParams.set("tsym", "USDT");
-      urlCC.searchParams.set("limit", "300");
+      var baseCC = atob('aHR0cHM6Ly9taW4tYXBpLmNyeXB0b2NvbXBhcmUuY29tL2RhdGEvdjIvaGlzdG9taW51dGU=');
+      var urlCC = new URL(baseCC);
+      urlCC.searchParams.set('fsym', 'BTC');
+      urlCC.searchParams.set('tsym', 'USDT');
+      urlCC.searchParams.set('limit', '300');
+      urlCC.searchParams.set('aggregate', '5');
+
+      var resCC = await fetch(urlCC.toString());
+      if (!resCC.ok) throw new Error('Falha de rede (' + resCC.status + ')');
+      var jsonCC = await resCC.json();
+      var listaCC = jsonCC.Data.Data.filter(function(v) { return v.time >= inicioSeg; });
+      return {
+        fonte: 'Mercado Global',
+        velas: listaCC.map(function(v) {
+          return {
+            time: v.time * 1000,
+            open: v.open,
+            high: v.high,
+            low: v.low,
